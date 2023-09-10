@@ -1,0 +1,153 @@
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+from xgboost import XGBRegressor
+from sklearn.ensemble import GradientBoostingRegressor
+import lightgbm as lgb
+# Load the data
+data = pd.read_csv('/kaggle/input/3rd-programming-competition-bahrain-ai/house_data_train4.csv')
+df_test = pd.read_csv('/kaggle/input/3rd-programming-competition-bahrain-ai/house_data_test4.csv')
+
+
+#replace outliers with median value
+#df_test.loc[df_test['bedrooms'] >= 13, 'bedrooms'] = df_test['bedrooms'].median()
+
+#df_test.loc[df_test['metersq_lot'] >= 500000, 'metersq_lot'] = df_test['metersq_lot'].median()
+
+#df_test.loc[df_test['metersq_land'] >= 500000, 'metersq_land'] = df_test['metersq_land'].median()
+
+#df_test.loc[df_test['location2'] <= -5, 'location2'] = df_test['location2'].median()
+
+#get ids of each test record
+id_test = df_test['id']
+df1 = pd.DataFrame(id_test, columns = ['id'])
+
+#remove id from test data
+df_test = df_test.drop(labels='id',axis=1)
+print(df_test)
+
+# we drop the id column because it dosent have any correlation with sale_price columns
+# Drop the 'id' from train data
+data.drop(['id'], axis=1, inplace=True)
+
+#remove outliers from train data
+#data.loc[data['bedrooms'] >=13, 'bedrooms'] = data['bedrooms'].median()
+#data = data[data['metersq_lot'] <= 500000]
+#data = data[data['metersq_land'] <= 500000]
+#data.loc[data['location2'] <= -5, 'location2'] = data['location2'].median()
+
+
+
+
+#add extra features to improve model predictions
+data['builtLandRatio'] = data['metersq_built'] / data['metersq_land']
+data['ageOfProperty'] = 2018 - data['yr_built']
+data.drop('yr_built', axis=1, inplace=True)
+data['total_rooms'] = data['bedrooms'] + data['bathrooms']
+data['ratio_above_ground'] = data['metersq_above'] / (data['metersq_above'] + data['metersq_basement'])
+
+data['lot_to_living_ratio'] = data['metersq_lot'] / data['metersq_living']
+data['has_basement'] = (data['metersq_basement'] > 0).astype(int)
+data['has_view'] = (data['view'] > 0).astype(int)
+data['bedroom_to_built'] = data['bedrooms']/data['metersq_built']
+data['built_above'] = data['metersq_built']/data['metersq_above']
+data['ratio_above_living'] = data['metersq_land'] / (data['metersq_land'] + data['metersq_above'])
+
+data['r1'] = data['metersq_basement'] / (data['metersq_basement'] + data['metersq_lot'])
+data['r2'] = data['metersq_above'] / (data['metersq_above'] + data['metersq_lot'])
+data['r5'] = data['bedrooms'] / (data['bedrooms'] + data['metersq_lot'])
+data['r3'] = data['bedrooms'] / (data['bedrooms'] + data['metersq_living'])
+data['r4'] = data['bathrooms'] / (data['bathrooms'] + data['metersq_living'])
+
+data['r6'] = data['condition'] /  data['ageOfProperty']
+data['r7'] = data['metersq_above'] /  data['grade']
+data.drop('block_no', axis=1, inplace=True)
+
+
+
+df_test['builtLandRatio'] = df_test['metersq_built'] / df_test['metersq_land']
+df_test['ageOfProperty'] = 2018 - df_test['yr_built']
+df_test.drop('yr_built', axis=1, inplace=True)
+df_test['total_rooms'] = df_test['bedrooms'] + df_test['bathrooms']
+df_test['ratio_above_ground'] = df_test['metersq_above'] / (df_test['metersq_above'] + df_test['metersq_basement'])
+
+df_test['lot_to_living_ratio'] = df_test['metersq_lot'] / df_test['metersq_living']
+df_test['has_basement'] = (df_test['metersq_basement'] > 0).astype(int)
+df_test['has_view'] = (df_test['view'] > 0).astype(int)
+df_test['bedroom_to_built'] = df_test['bedrooms']/df_test['metersq_built']
+df_test['built_above'] = df_test['metersq_built']/df_test['metersq_above']
+df_test['ratio_above_living'] = df_test['metersq_land'] / (df_test['metersq_land'] + df_test['metersq_above'])
+
+df_test['r1'] = df_test['metersq_basement'] / (df_test['metersq_basement'] + df_test['metersq_lot'])
+df_test['r2'] = df_test['metersq_above'] / (df_test['metersq_above'] + df_test['metersq_lot'])
+df_test['r5'] = df_test['bedrooms'] / (df_test['bedrooms'] + df_test['metersq_lot'])
+df_test['r3'] = df_test['bedrooms'] / (df_test['bedrooms'] + df_test['metersq_living'])
+df_test['r4'] = df_test['bathrooms'] / (df_test['bathrooms'] + df_test['metersq_living'])
+
+df_test['r6'] = df_test['condition'] /  df_test['ageOfProperty']
+df_test['r7'] = df_test['metersq_above'] /  df_test['grade']
+df_test.drop('block_no', axis=1, inplace=True)
+
+
+#split the train  from the label
+X = data.drop('sale_price', axis=1)
+y = data['sale_price']
+
+#looking at how sale_price data is distributied we decide that log normalization is better than standard normalization
+#for this type of distribution
+y = np.log1p(y)
+
+# Model selection and training
+xgb =  XGBRegressor(n_estimators=4100, max_depth=7, learning_rate=0.05, subsample=0.955,colsample_bytree = 0.955, random_state=55)
+gb = GradientBoostingRegressor(n_estimators=2000, max_depth=6, learning_rate=0.05, random_state=55,loss='squared_error')
+lgb = lgb.LGBMRegressor(boosting_type='gbdt', num_leaves=34, max_depth=-1, learning_rate=0.05, n_estimators=7000,random_state=55)
+
+xgb.fit(X,y)
+gb.fit(X,y)
+lgb.fit(X,y)
+
+# Model evaluation
+xgbPredict = xgb.predict(df_test)
+#unnormalize the price
+xgbPredict = np.exp(xgbPredict)
+print(xgbPredict)
+
+#check if there is any value that is 0 or less, because we are takign the log in calculating 
+# r2 , this will make sure all value are accepted and no error NAN value will be produced causing
+#corrupted evaluation
+print("prediction 0 value count: ", np.count_nonzero(xgbPredict <= 0))
+
+gpPredict = gb.predict(df_test)
+gpPredict = np.exp(gpPredict)
+print(gpPredict)
+
+print("prediction 0 value count: ", np.count_nonzero(gpPredict <= 0))
+
+
+lgbPredict = lgb.predict(df_test)
+lgbPredict = np.exp(lgbPredict)
+print(lgbPredict)
+
+print("prediction 0 value count: ", np.count_nonzero(lgbPredict <= 0))
+
+
+##blending the models
+blendedModelResult =0.5* xgbPredict +0.3* gpPredict +0.2* lgbPredict
+print(blendedModelResult)
+
+
+
+#rounding returned values
+Y_Pred = blendedModelResult.round()
+print("prediction 0 value count: ", np.count_nonzero(Y_Pred <= 0))
+
+#now converting the results to a dataframe
+print(type(Y_Pred))
+df2 = pd.DataFrame(Y_Pred, columns = ['price'])
+print(type(df2))
+
+
+#adding the Id column to the dataframe
+submission = pd.concat([df1,df2],axis=1)
+submission.to_csv('/kaggle/working/submission.csv',index=False) # save to notebook output
+print(submission)

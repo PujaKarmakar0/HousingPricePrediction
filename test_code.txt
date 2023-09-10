@@ -1,0 +1,93 @@
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split, GridSearchCV
+from xgboost import XGBRegressor
+from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.preprocessing import StandardScaler
+import lightgbm as lgb
+from sklearn.model_selection import KFold
+
+# Load the data
+data = pd.read_csv('/kaggle/input/3rd-programming-competition-bahrain-ai/house_data_train4.csv')
+
+# Drop the 'id' and 'location2' columns
+data.drop(['id'], axis=1, inplace=True)
+
+
+data['builtLandRatio'] = data['metersq_built'] / data['metersq_land']
+data['ageOfProperty'] = 2018 - data['yr_built']
+data.drop('yr_built', axis=1, inplace=True)
+data['total_rooms'] = data['bedrooms'] + data['bathrooms']
+data['ratio_above_ground'] = data['metersq_above'] / (data['metersq_above'] + data['metersq_basement'])
+
+data['lot_to_living_ratio'] = data['metersq_lot'] / data['metersq_living']
+data['has_basement'] = (data['metersq_basement'] > 0).astype(int)
+data['has_view'] = (data['view'] > 0).astype(int)
+data['bedroom_to_built'] = data['bedrooms']/data['metersq_built']
+data['built_above'] = data['metersq_built']/data['metersq_above']
+data['ratio_above_living'] = data['metersq_land'] / (data['metersq_land'] + data['metersq_above'])
+
+data['r1'] = data['metersq_basement'] / (data['metersq_basement'] + data['metersq_lot'])
+data['r2'] = data['metersq_above'] / (data['metersq_above'] + data['metersq_lot'])
+data['r5'] = data['bedrooms'] / (data['bedrooms'] + data['metersq_lot'])
+data['r3'] = data['bedrooms'] / (data['bedrooms'] + data['metersq_living'])
+data['r4'] = data['bathrooms'] / (data['bathrooms'] + data['metersq_living'])
+
+data['r6'] = data['condition'] /  data['ageOfProperty']
+data['r7'] = data['metersq_above'] /  data['grade']
+data.drop('block_no', axis=1, inplace=True)
+
+
+
+
+
+data = data.reset_index(drop=True)
+X = data.drop('sale_price', axis=1)
+y = data['sale_price']
+print(y)
+y = np.log1p(y)
+
+kf = KFold(n_splits=5,shuffle=True, random_state = 43)
+fold_idxs = list(kf.split(data))
+# Select just the fold_num fold to train on
+train_idx, val_idx = fold_idxs[1] 
+    
+X_train, X_test = X.iloc[train_idx],X.iloc[val_idx]
+y_train, y_test = y.iloc[train_idx], y.iloc[val_idx]
+    
+    
+
+y_test = np.exp(y_test)
+
+
+
+best_model_xgb =  XGBRegressor(n_estimators=2000, max_depth=7, learning_rate=0.05, subsample=0.955,colsample_bytree = 0.955, random_state=55)
+
+
+
+best_model_xgb.fit(X_train, y_train)
+
+
+# Model evaluation
+y_pred_xgb = best_model_xgb.predict(X_test)
+y_pred_xgb = np.exp(y_pred_xgb)
+print(y_pred_xgb)
+
+#check if there is any value that is 0 or less, because we are takign the log in calculating 
+# r2 , this will make sure all value are accepted and no error NAN value will be produced causing
+#corrupted evaluation
+print("prediction 0 value count: ", np.count_nonzero(y_pred_xgb <= 0))
+log_y_pred_xgb = np.log(y_pred_xgb)
+log_y_test = np.log(y_test)
+mse_xgb = mean_squared_error(log_y_test, log_y_pred_xgb)
+rmse_xgb = np.sqrt(mse_xgb)
+r2_xgb = r2_score(log_y_test, log_y_pred_xgb)
+print('xgb RMSE (logarithmic):', rmse_xgb)
+print('xgb R-squared (logarithmic):', r2_xgb)
+
+
+
+
+
+
