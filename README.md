@@ -1,5 +1,10 @@
 # HousingPricePrediction
 Part of 3rd Programming Competition Artificial Intelligence &amp; Machine Learning held on University of Bahrain (Hackathon for 3 days)
+Bug-bytes
+University of Bahrain
+Puja Karmakar
+Weaam Wafeq Ajoor
+Vanshika Sharma
 
 Problem:
 Predicting the Sale price of house based on its features. Addressing Non-linearity, outliners, Data and Model evaluation and analysis.
